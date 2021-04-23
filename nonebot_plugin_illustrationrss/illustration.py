@@ -47,7 +47,7 @@ class IllustrationBase(object):
         :return: salty img mat
         """
         assert type(img) == np.ndarray
-        for k in range(n):
+        for _ in range(n):
             i = random.randint(0, img.shape[1] - 1)
             j = random.randint(0, img.shape[0] - 1)
             if img.ndim == 2:
@@ -68,3 +68,8 @@ class IllustrationBase(object):
         assert self.filepath is not None
         with open(self.filepath, 'rb') as f:
             return "base64://" + base64.b64encode(f.read()).decode('utf-8')
+
+
+class IllustrationLocal(IllustrationBase):
+    def __init__(self, filepath):
+        self.filepath = filepath

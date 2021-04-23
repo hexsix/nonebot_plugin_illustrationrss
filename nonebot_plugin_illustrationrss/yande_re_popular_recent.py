@@ -1,4 +1,4 @@
-import os.path
+import os
 import re
 from typing import List, Dict
 
@@ -9,6 +9,7 @@ from .config import plugin_config
 from .downloader import DownloaderBase
 from .illustration import IllustrationBase
 from .rss import RssBase
+from .sender import SenderBase
 
 scheduler = nonebot.require("nonebot_plugin_apscheduler").scheduler
 
@@ -33,6 +34,11 @@ class YandeRePopularRecentIllustration(IllustrationBase):
         self.filename = f"yande_re_popular_recent_{self.id}.jpg"
         # filepath
         self.filepath = os.path.join(plugin_config.cachepath, self.filename)
+        # todo
+        # if plugin_config.use_mirai:
+        #     self.filepath = os.path.join(plugin_config.mirai_images_path, self.filename)
+        # else:
+        #     self.filepath = os.path.join(plugin_config.cachepath, self.filename)
 
 
 class YandeRePopularRecentRss(RssBase):
@@ -62,8 +68,15 @@ class YandeRePopularRecentDownloader(DownloaderBase):
         self.rss = YandeRePopularRecentRss()
 
 
+class YandeRePopularRecentSender(SenderBase):
+    def __init__(self):
+        super().__init__("yande_re_popular_recent")
+        self.tgt_members = plugin_config.yande_re_popular_recent_tgt_members
+        self.tgt_groups = plugin_config.yande_re_popular_recent_tgt_groups
+
+
 if plugin_config.yande_re_popular_recent_enable:
-    @scheduler.scheduled_job("cron", hour="*", minute="*", id="yande_re_popular_recent_downloader")
+    @scheduler.scheduled_job("cron", hour="10", minute="10", id="yande_re_popular_recent_downloader")
     async def yande_re_popular_recent_downloader():
         yande_re_popular_recent_config = {"use_proxy": plugin_config.use_proxy,
                                           "proxies": plugin_config.proxies,
@@ -71,3 +84,7 @@ if plugin_config.yande_re_popular_recent_enable:
                                           }
         logger.log("DEBUG", f"Loaded Config: {str(yande_re_popular_recent_config)}")
         await YandeRePopularRecentDownloader().run()
+
+    @scheduler.scheduled_job("cron", hour="*", minute="*", id="yande_re_popular_recent_sender")
+    async def yande_re_popular_recent_sender():
+        await YandeRePopularRecentSender().run()

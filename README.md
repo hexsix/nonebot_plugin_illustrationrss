@@ -65,7 +65,12 @@ IllustrationRssYandeRePopularRecentTargetMember=[""]
 - [ ] 每个图源都有自己的代理规则
 - [ ] 支持诸如 SOCKS5 等代理方法
 - [ ] 可以在群内或者私聊动态地管理本插件
+- [ ] 多帐号支持
 
 ## 欢迎 PRPRPRPR
 
 ### 扩展基类就好了
+
+### 如何写配置
+
+Check https://pydantic-docs.helpmanual.io/usage/types/
