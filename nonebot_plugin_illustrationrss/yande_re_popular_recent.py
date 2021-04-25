@@ -1,20 +1,50 @@
 import os
 import re
-from typing import List, Dict
+from typing import List, Dict, Any
 
 import nonebot
-from nonebot import logger
 
-from .config import plugin_config
-from .downloader import DownloaderBase
-from .illustration import IllustrationBase
-from .rss import RssBase
-from .sender import SenderBase
+from .config import Config
+from .downloader import BaseDownloader
+from .illustration import BaseIllustration
+from .rss import BaseRss
+from .sender import BaseSender
 
 scheduler = nonebot.require("nonebot_plugin_apscheduler").scheduler
 
 
-class YandeRePopularRecentIllustration(IllustrationBase):
+class YandeRePopularRecentConfig(Config):
+
+    enable: bool = False
+    score_threshold: int = 50
+    target_members: List[str] = []
+    target_groups: List[str] = []
+
+    def __init__(self, **values: Any):
+        super().__init__(**values)
+        try:
+            self.enable = self._set(values.get("illrssyanderepoprecentenable"), False)
+            self.use_proxy = self._set(values.get("illrssyanderepoprecentuseproxy"), False)
+            self.score_threshold = self._set(values.get("illrssyanderepoprecentscorethreshold"), 50)
+            self.target_members = self._set(values.get("illrssyanderepoprecenttargetmembers"), [])
+            self.target_groups = self._set(values.get("illrssyanderepoprecenttargetgroups"), [])
+        except ValueError as e:
+            raise self.ConfigError(e)
+        try:
+            assert type(self.enable) == bool
+            assert type(self.score_threshold) == int
+            assert type(self.target_members) == list
+            assert type(self.target_members) == list
+        except AssertionError as e:
+            raise self.ConfigError(e)
+
+
+global_config = nonebot.get_driver().config
+yande_re_popular_recent_config = YandeRePopularRecentConfig(**global_config.dict())
+
+
+class YandeRePopularRecentIllustration(BaseIllustration):
+
     post_url: str
     score: int
     rating: str
@@ -29,19 +59,17 @@ class YandeRePopularRecentIllustration(IllustrationBase):
         # s: safe, q: questionable, e: explicit
         self.rating = re.search(r'Rating:.', entry['description']).group().split(':')[-1]
         # https://files.yande.re/sample/xxxx.../xxxx...
-        self.illustration_link = re.search(r'https://files.yande.re/sample/[^"]*', entry['description']).group()
+        self.link = re.search(r'https://files.yande.re/sample/[^"]*', entry['description']).group()
         # filename
         self.filename = f"yande_re_popular_recent_{self.id}.jpg"
         # filepath
-        self.filepath = os.path.join(plugin_config.cachepath, self.filename)
-        # todo
-        # if plugin_config.use_mirai:
-        #     self.filepath = os.path.join(plugin_config.mirai_images_path, self.filename)
-        # else:
-        #     self.filepath = os.path.join(plugin_config.cachepath, self.filename)
+        if yande_re_popular_recent_config.use_mirai:
+            self.filepath = os.path.join(yande_re_popular_recent_config.mirai_images_path, self.filename)
+        else:
+            self.filepath = os.path.join(yande_re_popular_recent_config.cachepath, self.filename)
 
 
-class YandeRePopularRecentRss(RssBase):
+class YandeRePopularRecentRss(BaseRss):
 
     def __init__(self):
         self.rss_url = "https://rsshub.app/yande.re/post/popular_recent"
@@ -51,7 +79,7 @@ class YandeRePopularRecentRss(RssBase):
         for entry in self.rss_json["entries"]:
             try:
                 illustration = YandeRePopularRecentIllustration(entry)
-                if illustration.score < plugin_config.yande_re_popular_recent_score_threshold:
+                if illustration.score < yande_re_popular_recent_config.score_threshold:
                     continue
                 illustrations.append(illustration)
             except:
@@ -59,7 +87,8 @@ class YandeRePopularRecentRss(RssBase):
         return illustrations
 
 
-class YandeRePopularRecentDownloader(DownloaderBase):
+class YandeRePopularRecentDownloader(BaseDownloader):
+
     rss: YandeRePopularRecentRss
     illustrations: List[YandeRePopularRecentIllustration]
     use_salt: bool = True
@@ -68,23 +97,16 @@ class YandeRePopularRecentDownloader(DownloaderBase):
         self.rss = YandeRePopularRecentRss()
 
 
-class YandeRePopularRecentSender(SenderBase):
-    def __init__(self):
-        super().__init__("yande_re_popular_recent")
-        self.tgt_members = plugin_config.yande_re_popular_recent_tgt_members
-        self.tgt_groups = plugin_config.yande_re_popular_recent_tgt_groups
+class YandeRePopularRecentSender(BaseSender):
+    pass
 
 
-if plugin_config.yande_re_popular_recent_enable:
-    @scheduler.scheduled_job("cron", hour="10", minute="10", id="yande_re_popular_recent_downloader")
+if yande_re_popular_recent_config.enable:
+
+    @scheduler.scheduled_job("cron", hour="*", minute="*/7", id="yande_re_popular_recent_downloader")
     async def yande_re_popular_recent_downloader():
-        yande_re_popular_recent_config = {"use_proxy": plugin_config.use_proxy,
-                                          "proxies": plugin_config.proxies,
-                                          "score_threshold": plugin_config.yande_re_popular_recent_score_threshold
-                                          }
-        logger.log("DEBUG", f"Loaded Config: {str(yande_re_popular_recent_config)}")
-        await YandeRePopularRecentDownloader().run()
+        await YandeRePopularRecentDownloader().run(yande_re_popular_recent_config)
 
-    @scheduler.scheduled_job("cron", hour="*", minute="*", id="yande_re_popular_recent_sender")
+    @scheduler.scheduled_job("cron", hour="*", minute="*/11", id="yande_re_popular_recent_sender")
     async def yande_re_popular_recent_sender():
-        await YandeRePopularRecentSender().run()
+        await YandeRePopularRecentSender(yande_re_popular_recent_config, "yande_re_popular_recent").run()

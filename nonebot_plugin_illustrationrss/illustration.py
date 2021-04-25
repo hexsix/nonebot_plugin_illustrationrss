@@ -1,30 +1,34 @@
 import asyncio
-import base64
 import random
 
 import cv2
 import httpx
 import numpy as np
 
-from .config import plugin_config
+from .config import Config
 
 
-class IllustrationBase(object):
+class BaseIllustration(object):
     link: str = None
     filepath: str = None
+
+    def __str__(self):
+        return f"Ill(\"{self.link}\",\"{self.filepath}\")"
+
+    __repr__ = __str__
 
     class IllustrationDownloadError(Exception):
         pass
 
-    async def download(self, use_salt: bool = False):
+    async def download(self, config: Config, use_salt: bool = False):
         fail_flag = True
         for _ in range(3):
             try:
-                if plugin_config.use_proxy:
-                    async with httpx.AsyncClient(proxies=plugin_config.proxies) as client:
+                if config.use_proxy:
+                    async with httpx.AsyncClient(verify=False, proxies=config.proxies) as client:
                         r = await client.get(self.link)
                 else:
-                    async with httpx.AsyncClient() as client:
+                    async with httpx.AsyncClient(verify=False) as client:
                         r = await client.get(self.link)
             except:
                 await asyncio.sleep(2)
@@ -63,13 +67,8 @@ class IllustrationBase(object):
         salt_image = self._salt(image)
         cv2.imwrite(self.filepath, salt_image)
 
-    def encode(self) -> str:
-        """ convert image to base64 """
-        assert self.filepath is not None
-        with open(self.filepath, 'rb') as f:
-            return "base64://" + base64.b64encode(f.read()).decode('utf-8')
 
-
-class IllustrationLocal(IllustrationBase):
+class LocalIllustration(BaseIllustration):
     def __init__(self, filepath):
         self.filepath = filepath
+        self.link = ""

@@ -1,25 +1,21 @@
+import os.path
 from typing import Any, List
 
-import nonebot
 from pydantic import BaseSettings
 
 
 class Config(BaseSettings):
 
-    # plugin custom config
     plugin_setting: str = "default"
+    bot_id: str = ""
+    # admins: List[str] = []
     use_proxy: bool = False
-    proxies: dict = None
+    proxies: dict = {}
     cachepath: str = None
-    bot_id: str = None
     use_mirai: bool = True
     mirai_images_path: str = None
-
-    # yande.re popular_recent
-    yande_re_popular_recent_enable: bool = False
-    yande_re_popular_recent_score_threshold: int = 50
-    yande_re_popular_recent_tgt_members: List[str] = []
-    yande_re_popular_recent_tgt_groups: List[str] = []
+    target_members: List[str] = []
+    target_groups: List[str] = []
 
     class Config:
         extra = "ignore"
@@ -29,30 +25,32 @@ class Config(BaseSettings):
 
     def __init__(self, **values: Any):
         super().__init__(**values)
+        self.bot_id = self._set(str(values.get("illrssbotid")), "")
+        self.use_proxy = self._set(values.get("illrssuseproxy"), False)
+        self.proxies = self._set(values.get("illrssproxies"), {})
+        self.cachepath = self._set(values.get("illrsscachedir"), "")
+        self.use_mirai = self._set(values.get("illrssusemirai"), False)
+        self.mirai_images_path = self._set(values.get("illrssmiraiimagespath"), "")
         try:
-            self.use_proxy = bool(values.get("illrssuseproxy"))
-            self.proxies = {
-                "http": values.get("illrssproxies"),
-                "https": values.get("illrssproxies")
-            }
-            self.cachepath = values.get("illrsscachedir")
-            self.bot_id = str(values.get("illrssbotid"))
-            self.use_mirai = values.get("illrssusemirai")
-            self.mirai_images_path = values.get("illrssmiraiimagespath")
-            # yande.re popular_recent
-            self.yande_re_popular_recent_enable = bool(values.get("illrssyanderepoprecentenable"))
-            self.yande_re_popular_recent_score_threshold = int(values.get("illrssyanderepoprecentscorethreshold"))
-            self.yande_re_popular_recent_tgt_members = values.get("illrssyanderepoprecenttargetmembers")
-            self.yande_re_popular_recent_tgt_groups = values.get("illrssyanderepoprecenttargetgroups")
-        except ValueError as e:
+            assert type(self.bot_id) == str
+            assert type(self.use_proxy) == bool
+            assert type(self.proxies) == dict
+            assert type(self.cachepath) == str
+            assert type(self.use_mirai) == bool
+            assert type(self.mirai_images_path) == str
+        except AssertionError as e:
             raise self.ConfigError(e)
+        if not self.bot_id:
+            raise self.ConfigError("Bot ID 未设置")
+        if self.use_mirai and not self.mirai_images_path:
+            raise self.ConfigError("mirai_images 目录未设置, 通常在 /path/to/mcl/data/net.mamoe.mirai-api-http/images")
+        if not os.path.exists(self.cachepath):
+            raise self.ConfigError("Cache 目录配置有误")
+        if not os.path.exists(self.mirai_images_path):
+            raise self.ConfigError("mirai_images 目录配置有误")
 
     @staticmethod
     def _set(value: Any, default: Any):
         if not value:
             return default
         return value
-
-
-global_config = nonebot.get_driver().config
-plugin_config = Config(**global_config.dict())
