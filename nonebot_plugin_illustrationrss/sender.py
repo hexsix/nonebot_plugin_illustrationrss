@@ -59,9 +59,15 @@ class BaseSender(object):
     async def _send(self, bot: Bot, three):
         func_type, target, filepath = three[0], three[1], three[2]
         if func_type == "friend":
-            send_msg = bot.send_friend_message
+            if self.config.use_mirai:
+                send_msg = bot.send_friend_message
+            else:
+                send_msg = bot.send_private_msg
         elif func_type == "group":
-            send_msg = bot.send_group_message
+            if self.config.use_mirai:
+                send_msg = bot.send_group_message
+            else:
+                send_msg = bot.send_group_msg
         else:
             return
 
