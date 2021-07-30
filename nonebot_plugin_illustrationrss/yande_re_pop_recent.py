@@ -1,6 +1,7 @@
 import os
+import pickle
 import re
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Set
 
 import nonebot
 
@@ -10,15 +11,14 @@ from .illustration import BaseIllustration
 from .rss import BaseRss
 from .sender import BaseSender
 
-scheduler = nonebot.require("nonebot_plugin_apscheduler").scheduler
-
 
 class YandeRePopularRecentConfig(Config):
 
     enable: bool = False
     score_threshold: int = 50
-    target_members: List[str] = []
-    target_groups: List[str] = []
+    use_proxy: bool = False
+    cache_dir: str = os.path.join("IllRssCacheDir", "YandeRePopRecent")
+    prefix: str = "yande"
 
     def __init__(self, **values: Any):
         super().__init__(**values)
@@ -26,15 +26,11 @@ class YandeRePopularRecentConfig(Config):
             self.enable = self._set(values.get("illrssyanderepoprecentenable"), False)
             self.use_proxy = self._set(values.get("illrssyanderepoprecentuseproxy"), False)
             self.score_threshold = self._set(values.get("illrssyanderepoprecentscorethreshold"), 50)
-            self.target_members = self._set(values.get("illrssyanderepoprecenttargetmembers"), [])
-            self.target_groups = self._set(values.get("illrssyanderepoprecenttargetgroups"), [])
         except ValueError as e:
             raise self.ConfigError(e)
         try:
             assert type(self.enable) == bool
             assert type(self.score_threshold) == int
-            assert type(self.target_members) == list
-            assert type(self.target_members) == list
         except AssertionError as e:
             raise self.ConfigError(e)
 
@@ -60,13 +56,10 @@ class YandeRePopularRecentIllustration(BaseIllustration):
         self.rating = re.search(r'Rating:.', entry['description']).group().split(':')[-1]
         # https://files.yande.re/sample/xxxx.../xxxx...
         self.link = re.search(r'https://files.yande.re/sample/[^"]*', entry['description']).group()
-        # filename
-        self.filename = f"yande_re_popular_recent_{self.id}.jpg"
+        # filename: yande_892137_43_s.jpg
+        self.filename = f"{yande_re_popular_recent_config.prefix}_{self.id}_{self.rating}.jpg"
         # filepath
-        if yande_re_popular_recent_config.use_mirai:
-            self.filepath = os.path.join(yande_re_popular_recent_config.mirai_images_path, self.filename)
-        else:
-            self.filepath = os.path.join(yande_re_popular_recent_config.cachepath, self.filename)
+        self.filepath = os.path.join(yande_re_popular_recent_config.cache_dir, self.filename)
 
 
 class YandeRePopularRecentRss(BaseRss):
@@ -98,15 +91,28 @@ class YandeRePopularRecentDownloader(BaseDownloader):
 
 
 class YandeRePopularRecentSender(BaseSender):
-    pass
 
+    @staticmethod
+    def not_send_list(uid: int):
+        try:
+            already_sent = pickle.load(open(os.path.join(yande_re_popular_recent_config.cache_dir, f"{uid}.pkl")))
+        except FileNotFoundError:
+            already_sent = set()
+        ill_filepaths = []
+        for ill_filename in os.listdir(yande_re_popular_recent_config.cache_dir):
+            if not ill_filename.endswith("jpg"):
+                continue
+            elif ill_filename in already_sent:
+                continue
+            else:
+                ill_filepaths.append(os.path.join(yande_re_popular_recent_config.cache_dir, ill_filename))
+        return ill_filepaths
 
-if yande_re_popular_recent_config.enable:
-
-    @scheduler.scheduled_job("cron", hour="*", minute="*/7", id="yande_re_popular_recent_downloader")
-    async def yande_re_popular_recent_downloader():
-        await YandeRePopularRecentDownloader().run(yande_re_popular_recent_config)
-
-    @scheduler.scheduled_job("cron", hour="*", minute="*/11", id="yande_re_popular_recent_sender")
-    async def yande_re_popular_recent_sender():
-        await YandeRePopularRecentSender(yande_re_popular_recent_config, "yande_re_popular_recent").run()
+    @staticmethod
+    def save_sent(uid: int, cur: Set[str]):
+        try:
+            already_sent = pickle.load(open(os.path.join(yande_re_popular_recent_config.cache_dir, f"{uid}.pkl")))
+        except FileNotFoundError:
+            already_sent = set()
+        already_sent.update(cur)
+        pickle.dump(already_sent, open(os.path.join(yande_re_popular_recent_config.cache_dir, f"{uid}.pkl")))

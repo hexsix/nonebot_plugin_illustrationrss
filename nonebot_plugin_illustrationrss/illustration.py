@@ -9,8 +9,8 @@ from .config import Config
 
 
 class BaseIllustration(object):
-    link: str = None
-    filepath: str = None
+    link: str = None                # raw illustration url
+    filepath: str = None            # where to save
 
     def __str__(self):
         return f"Ill(\"{self.link}\",\"{self.filepath}\")"
@@ -63,6 +63,9 @@ class BaseIllustration(object):
         return img
 
     def salt(self):
+        """
+        salt will modify illustration to avoid tencent md5 check
+        """
         image = cv2.imread(self.filepath)
         salt_image = self._salt(image)
         cv2.imwrite(self.filepath, salt_image)
